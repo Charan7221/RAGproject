@@ -31,8 +31,9 @@ If applicable, add screenshots to help explain your problem.
 - Browser: [e.g., Chrome 120, Safari 17]
 
 ## Configuration
-- LLM Model: [e.g., gemini-1.5-flash]
-- Embedding Model: [e.g., gemini-embedding-001]
+- LLM Provider: [e.g., Ollama (default), Google Gemini, OpenAI]
+- LLM Model: [e.g., llama3.2:3b, gemini-1.5-flash, gpt-4o-mini]
+- Embedding Model: [e.g., nomic-embed-text]
 - Using Docker: [Yes/No]
 
 ## Error Messages

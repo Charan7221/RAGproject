@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-A session-based document Q&A application built with **LangChain + FastAPI + React + PostgreSQL/pgvector + Google Gemini**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses.
+A session-based document Q&A application built with **LangChain + FastAPI + React + PostgreSQL/pgvector + Ollama**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses. Uses local Ollama LLM for cost-free, privacy-preserving AI inference.
 
 Built on the **LangChain framework** for modular RAG orchestration, document processing, and multi-provider LLM/embedding integration.
 
@@ -31,7 +31,7 @@ Built on the **LangChain framework** for modular RAG orchestration, document pro
 - **LangChain-powered RAG pipeline** — modular document processing, embeddings, and LLM orchestration
 - **Dynamic document upload** — PDF, DOCX, TXT, MD with LangChain document loaders
 - **Hybrid retrieval** — pgvector semantic search + PostgreSQL full-text, fused with Reciprocal Rank Fusion (RRF)
-- **Multi-provider support** — Google Gemini, OpenAI, or Ollama (via LangChain integrations)
+- **Multi-provider support** — Ollama (default), Google Gemini, or OpenAI (via LangChain integrations)
 - **Streaming answers** — token-by-token SSE responses in the chat UI
 - **Session persistence** — sessions and chat history survive page reloads
 - **Source attribution** — see which document chunks were used
@@ -47,9 +47,9 @@ FastAPI Backend (:8000)
         │  LangChain RAG Pipeline
         │
         ├── LangChain Document Loaders & Text Splitters
-        ├── LangChain Embeddings (Gemini/OpenAI/Ollama)
+        ├── LangChain Embeddings (Ollama nomic-embed-text)
         ├── Custom LangChain Retriever (Hybrid Search)
-        ├── LangChain Chat Models (Gemini LLM)
+        ├── LangChain Chat Models (Ollama Llama 3.2)
         └── PostgreSQL + pgvector (:5432)
               ├── sessions
               ├── documents
@@ -64,23 +64,39 @@ FastAPI Backend (:8000)
 - Python 3.10+
 - Node.js 18+
 - Docker (for PostgreSQL + pgvector)
-- Google Gemini API key ([get one here](https://aistudio.google.com/apikey))
+- Ollama (for local LLM - [install here](https://ollama.ai))
+
+**Optional:** Google Gemini or OpenAI API key for alternative LLM providers
 
 ### 1. Clone and configure
 
 ```bash
 cd RAGproject-main
 cp .env.example .env
-# Edit .env and set GOOGLE_API_KEY=your-key
+# Edit .env if using Google Gemini or OpenAI (Ollama works out of the box)
 ```
 
-### 2. Start PostgreSQL
+### 2. Install and start Ollama
+
+**On macOS/Linux:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull required models
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
+```
+
+**On Windows:** Download from [ollama.ai](https://ollama.ai)
+
+### 3. Start PostgreSQL
 
 ```bash
 docker compose up -d
 ```
 
-### 3. Install dependencies
+### 4. Install dependencies
 
 ```bash
 python -m venv venv
@@ -90,7 +106,7 @@ pip install -r requirements.txt
 cd frontend && npm install && cd ..
 ```
 
-### 4. Run the app
+### 5. Run the app
 
 **Option A — startup script:**
 
@@ -119,7 +135,8 @@ Settings live in `config/config.yml`. Environment variables override database cr
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOGLE_API_KEY` | — | Gemini API key (required) |
+| `GOOGLE_API_KEY` | — | Google Gemini API key (optional, if using Gemini) |
+| `OPENAI_API_KEY` | — | OpenAI API key (optional, if using OpenAI) |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
 | `DB_NAME` | `rag_db` | Database name |
@@ -130,7 +147,11 @@ Key settings in `config/config.yml`:
 
 ```yaml
 llm:
-  model: "gemini-1.5-flash"  # Stable production model
+  model: "llama3.2:3b"           # Ollama model (default)
+  base_url: "http://localhost:11434"  # Ollama endpoint
+
+embeddings:
+  default_model: "nomic-embed-text"   # Ollama embedding model
 
 retrieval:
   top_k: 5
@@ -139,9 +160,14 @@ retrieval:
     use_rrf: true
 
 text_splitter:
-  chunk_size: 128
-  chunk_overlap: 15
+  chunk_size: 512
+  chunk_overlap: 50
 ```
+
+**To switch to Google Gemini or OpenAI:**
+1. Update `config/config.yml`: Change `model` to `gemini-1.5-flash` or `gpt-4`
+2. Set API key in `.env`: `GOOGLE_API_KEY` or `OPENAI_API_KEY`
+3. Restart the backend
 
 ## API Endpoints
 
@@ -208,6 +234,19 @@ pytest tests/ -v
 
 ## Troubleshooting
 
+**Ollama connection failed:**
+```bash
+# Check if Ollama is running
+ollama list
+
+# Start Ollama service (if not running)
+ollama serve
+
+# Pull required models
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
+```
+
 **Database connection failed:**
 ```bash
 docker compose up -d
@@ -216,7 +255,10 @@ docker compose exec postgres pg_isready -U rag_user -d rag_db
 
 **Missing API key:**
 ```bash
+# Only required if using Google Gemini or OpenAI
 export GOOGLE_API_KEY=your-key
+# or
+export OPENAI_API_KEY=your-key
 # or add to .env file
 ```
 
@@ -234,13 +276,13 @@ lsof -ti:3000 | xargs kill -9
 | Backend | FastAPI, Uvicorn, SSE-Starlette |
 | Frontend | **React 18** (functional components + hooks), Axios, react-dropzone, react-markdown |
 | Vector DB | PostgreSQL 17 + pgvector (HNSW index) |
-| Embeddings | Google Gemini `gemini-embedding-001` (768-dim via Matryoshka) |
-| LLM | Google Gemini `gemini-1.5-flash` (supports OpenAI/Ollama alternatives) |
+| LLM | **Ollama Llama 3.2:3b** (default), supports Google Gemini, OpenAI |
+| Embeddings | **Ollama nomic-embed-text** (768-dim), supports Gemini, OpenAI |
 | Text Processing | LangChain RecursiveCharacterTextSplitter, tiktoken encoding |
 | Retrieval | Hybrid semantic + full-text with RRF (custom LangChain BaseRetriever) |
 | Document Loaders | PyPDF2, python-docx, BeautifulSoup4 (via LangChain Documents) |
 
-> **Note**: GitHub shows the frontend as "JavaScript" because React is JavaScript. The frontend is built with React 18 using modern functional components and hooks.
+> **Note**: The system uses **Ollama** by default for cost-free, privacy-preserving local AI. Multi-provider architecture supports easy switching to Google Gemini or OpenAI via configuration.
 
 ## License
 
@@ -271,10 +313,11 @@ Future improvements planned:
 
 Built with these amazing technologies:
 - [LangChain](https://www.langchain.com/) - RAG framework and LLM orchestration
+- [Ollama](https://ollama.ai/) - Local LLM runtime and models
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
 - [React](https://react.dev/) - Frontend UI library
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Vector database
-- [Google Gemini](https://ai.google.dev/) - LLM and embeddings API
+- [Google Gemini](https://ai.google.dev/) - Optional cloud LLM provider
 
 ## Contact & Support
 

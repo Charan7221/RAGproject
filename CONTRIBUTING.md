@@ -51,6 +51,7 @@ Feature requests are welcome! Please:
 - Python 3.10+
 - Node.js 18+
 - Docker
+- Ollama ([install here](https://ollama.ai))
 
 ### Setup Steps
 
@@ -58,6 +59,11 @@ Feature requests are welcome! Please:
 # Clone the repository
 git clone https://github.com/Charan7221/RAGproject.git
 cd RAGproject
+
+# Install and start Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
 
 # Set up Python virtual environment
 python -m venv venv
@@ -71,7 +77,7 @@ cd ..
 
 # Configure environment
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env only if using Gemini/OpenAI (Ollama works out of the box)
 
 # Start PostgreSQL
 docker compose up -d
