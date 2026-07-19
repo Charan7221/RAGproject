@@ -1,0 +1,6 @@
+# Mark frontend JavaScript files as React
+*.js linguist-language=JavaScript
+*.jsx linguist-language=JavaScript
+
+# Frontend is React-based
+package.json linguist-language=JSON
