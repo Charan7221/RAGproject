@@ -232,13 +232,15 @@ lsof -ti:3000 | xargs kill -9
 |-------|-----------|
 | **RAG Framework** | **LangChain 0.3+** (core, community, google-genai, openai, ollama, postgres) |
 | Backend | FastAPI, Uvicorn, SSE-Starlette |
-| Frontend | React 18, Axios, react-dropzone, react-markdown |
+| Frontend | **React 18** (functional components + hooks), Axios, react-dropzone, react-markdown |
 | Vector DB | PostgreSQL 17 + pgvector (HNSW index) |
 | Embeddings | Google Gemini `gemini-embedding-001` (768-dim via Matryoshka) |
 | LLM | Google Gemini `gemini-1.5-flash` (supports OpenAI/Ollama alternatives) |
 | Text Processing | LangChain RecursiveCharacterTextSplitter, tiktoken encoding |
 | Retrieval | Hybrid semantic + full-text with RRF (custom LangChain BaseRetriever) |
 | Document Loaders | PyPDF2, python-docx, BeautifulSoup4 (via LangChain Documents) |
+
+> **Note**: GitHub shows the frontend as "JavaScript" because React is JavaScript. The frontend is built with React 18 using modern functional components and hooks.
 
 ## License
 
