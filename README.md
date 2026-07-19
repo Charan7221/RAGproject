@@ -1,0 +1,186 @@
+# RAG Document QA System
+
+A session-based document Q&A application built with **FastAPI + React + PostgreSQL/pgvector + Google Gemini**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses.
+
+## Features
+
+- **Dynamic document upload** — PDF, DOCX, TXT, MD
+- **Hybrid retrieval** — pgvector semantic search + PostgreSQL full-text, fused with Reciprocal Rank Fusion (RRF)
+- **Streaming answers** — token-by-token SSE responses in the chat UI
+- **Session persistence** — sessions and chat history survive page reloads
+- **Source attribution** — see which document chunks were used
+- **Multi-session isolation** — each session has its own document scope
+
+## Architecture
+
+```
+React Frontend (:3000)
+        │  REST + SSE
+        ▼
+FastAPI Backend (:8000)
+        │
+        ├── Google Gemini (embeddings + LLM)
+        └── PostgreSQL + pgvector (:5432)
+              ├── sessions
+              ├── documents
+              ├── document_chunks (vectors)
+              └── chat_history
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- Docker (for PostgreSQL + pgvector)
+- Google Gemini API key ([get one here](https://aistudio.google.com/apikey))
+
+### 1. Clone and configure
+
+```bash
+cd RAGproject-main
+cp .env.example .env
+# Edit .env and set GOOGLE_API_KEY=your-key
+```
+
+### 2. Start PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+### 3. Install dependencies
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+cd frontend && npm install && cd ..
+```
+
+### 4. Run the app
+
+**Option A — startup script:**
+
+```bash
+chmod +x start_fullstack.sh stop_fullstack.sh
+./start_fullstack.sh
+```
+
+**Option B — manual:**
+
+```bash
+# Terminal 1 — backend
+cd backend && python api.py
+
+# Terminal 2 — frontend
+cd frontend && npm start
+```
+
+Open **http://localhost:3000**
+
+API docs: **http://localhost:8000/docs**
+
+## Configuration
+
+Settings live in `config/config.yml`. Environment variables override database credentials:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOOGLE_API_KEY` | — | Gemini API key (required) |
+| `DB_HOST` | `localhost` | PostgreSQL host |
+| `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_NAME` | `rag_db` | Database name |
+| `DB_USER` | `rag_user` | Database user |
+| `DB_PASSWORD` | `rag_password` | Database password |
+
+Key settings in `config/config.yml`:
+
+```yaml
+llm:
+  model: "gemini-1.5-flash"  # Stable production model
+
+retrieval:
+  top_k: 5
+  hybrid_search:
+    enabled: true
+    use_rrf: true
+
+text_splitter:
+  chunk_size: 128
+  chunk_overlap: 15
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Health check |
+| GET | `/api/config` | Public config for frontend |
+| POST | `/api/session/create` | Create session |
+| POST | `/api/documents/upload` | Upload document |
+| POST | `/api/query` | Ask question |
+| POST | `/api/query/stream` | Stream answer (SSE) |
+| GET | `/api/session/{id}` | Session info |
+| GET | `/api/session/{id}/history` | Chat history |
+| DELETE | `/api/session/{id}` | Delete session |
+| DELETE | `/api/session/{id}/documents/{doc_id}` | Delete document |
+
+## Project Structure
+
+```
+RAGproject-main/
+├── backend/           # FastAPI API server
+├── frontend/          # React SPA
+├── src/rag_qa/        # Core RAG library
+│   ├── core/          # Retriever, LLM, document processing
+│   └── utils/         # Config loader
+├── config/config.yml  # Central configuration
+├── tests/             # Unit tests
+├── docker-compose.yml # PostgreSQL + pgvector
+└── requirements.txt
+```
+
+## Testing
+
+```bash
+source venv/bin/activate
+pytest tests/ -v
+```
+
+## Troubleshooting
+
+**Database connection failed:**
+```bash
+docker compose up -d
+docker compose exec postgres pg_isready -U rag_user -d rag_db
+```
+
+**Missing API key:**
+```bash
+export GOOGLE_API_KEY=your-key
+# or add to .env file
+```
+
+**Port in use:**
+```bash
+lsof -ti:8000 | xargs kill -9
+lsof -ti:3000 | xargs kill -9
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI, LangChain |
+| Frontend | React 18, Axios, react-dropzone |
+| Vector DB | PostgreSQL + pgvector (HNSW index) |
+| Embeddings | Google Gemini `gemini-embedding-001` (768-dim via Matryoshka) |
+| LLM | Google Gemini `gemini-1.5-flash` |
+| Retrieval | Hybrid semantic + full-text with RRF |
+
+## License
+
+MIT

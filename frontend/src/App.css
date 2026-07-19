@@ -1,0 +1,12 @@
+.App {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .App {
+    flex-direction: column;
+  }
+}
+

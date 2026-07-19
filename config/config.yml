@@ -1,0 +1,106 @@
+# RAG Document QA System Configuration
+# All configuration settings in one place
+
+# Text Splitting Configuration
+text_splitter:
+  chunk_size: 512                # Optimized for better context (increased from 128)
+  chunk_overlap: 50              # Better context preservation (increased from 15)
+  separators:                    # Hierarchical separators for splitting
+    - "\n\n"                     # Paragraph breaks (highest priority)
+    - "\n"                       # Line breaks
+    - ". "                       # Sentence boundaries
+    - " "                        # Word boundaries
+    - ""                         # Character level (fallback)
+
+# Embedding Models Configuration
+embeddings:
+  default_model: "nomic-embed-text"  # Ollama embedding model
+  sbert_model: "nomic-embed-text"
+  device: "cpu"
+  
+# Language Model Configuration
+llm:
+  # Ollama Configuration
+  use_openai: true               
+  api_key: ""                    
+  model: "llama3.2:3b"           # Ollama model - FREE, NO rate limits!
+  base_url: "http://localhost:11434"  # Ollama API endpoint                 
+  
+  # Generation Parameters
+  params:
+    max_tokens: 2000             
+    temperature: 0.1
+
+# Retrieval Configuration
+retrieval:
+  top_k: 5                      # Final number of chunks to return
+  top_k_initial: 20             # Initial retrieval count
+  search_type: "similarity"     # similarity, mmr
+  
+  # Hybrid Search Configuration (Full-text + Semantic)
+  hybrid_search:
+    enabled: true                # Enable hybrid search (full-text + semantic)
+    alpha: 0.5                   # Weight for semantic search (0=text only, 1=semantic only)
+    use_rrf: true                # Use Reciprocal Rank Fusion (recommended)
+    rrf_k: 60                   # RRF constant
+  
+  # Re-ranking Configuration (Cross-Encoder)
+  reranking:
+    enabled: false               # Disabled - PyTorch not available for Python 3.14
+    model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    device: "cpu"
+    batch_size: 32
+
+  # Query Expansion Configuration
+  query_expansion:
+    enabled: false               # Disabled for faster queries (each variant calls Ollama)
+    num_variants: 3              # Number of query variants to generate
+
+# Database Configuration (PostgreSQL + pgvector)
+# Override via env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+database:
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "rag_db"
+    user: "rag_user"
+    password: "rag_password"
+    pool_size: 5
+    max_overflow: 10
+
+# Document Processing Configuration
+document_processing:
+  supported_formats:
+    - ".pdf"
+    - ".txt"
+    - ".docx"
+    - ".md"
+  use_advanced_loader: true
+  
+# Regex Patterns for Text Cleaning
+text_cleaning:
+  normalize_whitespace: true
+  normalize_newlines: true
+  remove_special_chars: true
+
+# Conversation Memory Configuration
+conversation:
+  max_history_turns: 5           # Number of past Q&A turns to include in context
+  
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+  file: null
+
+# UI Configuration
+ui:
+  streamlit:
+    port: 8501
+    host: "localhost"
+    
+# System Configuration
+system:
+  data_dir: "data"
+  documents_dir: "data/documents"
+  sample_docs_dir: "data/sample_docs"

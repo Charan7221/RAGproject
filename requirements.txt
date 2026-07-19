@@ -1,0 +1,48 @@
+# Core RAG System Requirements
+# =================================
+
+# LangChain for RAG pipeline
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.3.0
+langchain-google-genai>=2.0.0
+# langchain-huggingface>=0.3.0
+langchain-ollama>=0.2.0
+langchain-text-splitters>=0.3.0
+
+# Vector database - PostgreSQL + pgvector
+psycopg2-binary>=2.9.0
+pgvector>=0.3.0
+sqlalchemy>=2.0.0
+langchain-postgres>=0.0.6
+
+# Embeddings
+# sentence-transformers>=3.0.0  # For reranking - disabled (PyTorch not available for Python 3.14)
+
+# Document processing
+# unstructured[pdf,docx]>=0.18.0
+PyPDF2>=3.0.0
+python-docx>=1.2.0
+beautifulsoup4>=4.12.0
+tiktoken>=0.12.0
+markdown>=3.0.0
+
+# Web Interfaces
+# =================================
+
+# FastAPI Backend (Production)
+fastapi>=0.120.0
+uvicorn>=0.38.0
+python-multipart>=0.0.20
+pydantic>=2.11.0
+sse-starlette>=2.0.0
+
+# Utilities
+# =================================
+tqdm>=4.67.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=8.0.0
