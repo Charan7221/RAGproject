@@ -1,11 +1,15 @@
 # RAG Document QA System
 
-A session-based document Q&A application built with **FastAPI + React + PostgreSQL/pgvector + Google Gemini**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses.
+A session-based document Q&A application built with **LangChain + FastAPI + React + PostgreSQL/pgvector + Google Gemini**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses.
+
+Built on the **LangChain framework** for modular RAG orchestration, document processing, and multi-provider LLM/embedding integration.
 
 ## Features
 
-- **Dynamic document upload** — PDF, DOCX, TXT, MD
+- **LangChain-powered RAG pipeline** — modular document processing, embeddings, and LLM orchestration
+- **Dynamic document upload** — PDF, DOCX, TXT, MD with LangChain document loaders
 - **Hybrid retrieval** — pgvector semantic search + PostgreSQL full-text, fused with Reciprocal Rank Fusion (RRF)
+- **Multi-provider support** — Google Gemini, OpenAI, or Ollama (via LangChain integrations)
 - **Streaming answers** — token-by-token SSE responses in the chat UI
 - **Session persistence** — sessions and chat history survive page reloads
 - **Source attribution** — see which document chunks were used
@@ -18,8 +22,12 @@ React Frontend (:3000)
         │  REST + SSE
         ▼
 FastAPI Backend (:8000)
+        │  LangChain RAG Pipeline
         │
-        ├── Google Gemini (embeddings + LLM)
+        ├── LangChain Document Loaders & Text Splitters
+        ├── LangChain Embeddings (Gemini/OpenAI/Ollama)
+        ├── Custom LangChain Retriever (Hybrid Search)
+        ├── LangChain Chat Models (Gemini LLM)
         └── PostgreSQL + pgvector (:5432)
               ├── sessions
               ├── documents
@@ -128,6 +136,32 @@ text_splitter:
 | DELETE | `/api/session/{id}` | Delete session |
 | DELETE | `/api/session/{id}/documents/{doc_id}` | Delete document |
 
+## LangChain Integration
+
+This project leverages **LangChain** as the core RAG framework:
+
+### LangChain Components Used
+
+- **langchain-core** — Base abstractions (`Document`, `BaseRetriever`, `CallbackManager`, message types)
+- **langchain-google-genai** — Google Gemini LLM and embeddings integration
+- **langchain-openai** — OpenAI embeddings and chat models (alternative)
+- **langchain-ollama** — Local Ollama embeddings (alternative)
+- **langchain-text-splitters** — `RecursiveCharacterTextSplitter` for intelligent chunking
+- **langchain-postgres** — PostgreSQL + pgvector integration
+
+### Custom Implementations
+
+- **PgHybridRetriever** (extends `BaseRetriever`) — Custom hybrid search with semantic + full-text retrieval
+- **Document processing pipeline** — Uses LangChain `Document` objects throughout
+- **Multi-provider embeddings** — Abstracted via LangChain's embedding interfaces
+
+### Why LangChain?
+
+- ✅ **Modularity** — Easy to swap LLM/embedding providers (Gemini ↔ OpenAI ↔ Ollama)
+- ✅ **Standardization** — Consistent interfaces across components
+- ✅ **Extensibility** — Custom retrievers integrate seamlessly with LangChain ecosystem
+- ✅ **Production-ready** — Built-in callbacks, error handling, and streaming support
+
 ## Project Structure
 
 ```
@@ -174,12 +208,15 @@ lsof -ti:3000 | xargs kill -9
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | FastAPI, LangChain |
-| Frontend | React 18, Axios, react-dropzone |
-| Vector DB | PostgreSQL + pgvector (HNSW index) |
+| **RAG Framework** | **LangChain 0.3+** (core, community, google-genai, openai, ollama, postgres) |
+| Backend | FastAPI, Uvicorn, SSE-Starlette |
+| Frontend | React 18, Axios, react-dropzone, react-markdown |
+| Vector DB | PostgreSQL 17 + pgvector (HNSW index) |
 | Embeddings | Google Gemini `gemini-embedding-001` (768-dim via Matryoshka) |
-| LLM | Google Gemini `gemini-1.5-flash` |
-| Retrieval | Hybrid semantic + full-text with RRF |
+| LLM | Google Gemini `gemini-1.5-flash` (supports OpenAI/Ollama alternatives) |
+| Text Processing | LangChain RecursiveCharacterTextSplitter, tiktoken encoding |
+| Retrieval | Hybrid semantic + full-text with RRF (custom LangChain BaseRetriever) |
+| Document Loaders | PyPDF2, python-docx, BeautifulSoup4 (via LangChain Documents) |
 
 ## License
 
