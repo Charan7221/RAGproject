@@ -1,8 +1,30 @@
 # RAG Document QA System
 
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![LangChain](https://img.shields.io/badge/🦜_LangChain-0.3+-green.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.120+-009688.svg)
+![React](https://img.shields.io/badge/React-18-61DAFB.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 A session-based document Q&A application built with **LangChain + FastAPI + React + PostgreSQL/pgvector + Google Gemini**. Upload PDF, DOCX, TXT, or Markdown files and ask questions — answers are grounded in your documents with source attribution and streaming responses.
 
 Built on the **LangChain framework** for modular RAG orchestration, document processing, and multi-provider LLM/embedding integration.
+
+## 📸 Demo
+
+> **Note**: Add screenshots or a demo GIF of your application here
+
+<details>
+<summary>📷 Click to see example UI (add your own screenshots)</summary>
+
+```
+[Screenshot 1: Document Upload Interface]
+[Screenshot 2: Chat Interface with Streaming Response]
+[Screenshot 3: Source Attribution Display]
+```
+
+</details>
 
 ## Features
 
@@ -220,4 +242,52 @@ lsof -ti:3000 | xargs kill -9
 
 ## License
 
-MIT
+MIT - See [LICENSE](LICENSE) file for details
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## Roadmap
+
+Future improvements planned:
+
+- [ ] Add support for more document formats (PPTX, CSV, JSON)
+- [ ] Implement conversation memory across sessions
+- [ ] Add user authentication and multi-user support
+- [ ] Support for image/table extraction from documents
+- [ ] Add reranking with cross-encoder models
+- [ ] Multi-language support for UI
+- [ ] Citation highlighting in source documents
+- [ ] Performance monitoring dashboard
+- [ ] Export chat history (PDF/TXT)
+- [ ] Batch document upload
+
+## Acknowledgments
+
+Built with these amazing technologies:
+- [LangChain](https://www.langchain.com/) - RAG framework and LLM orchestration
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [React](https://react.dev/) - Frontend UI library
+- [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Vector database
+- [Google Gemini](https://ai.google.dev/) - LLM and embeddings API
+
+## Contact & Support
+
+- **Author**: Charan7221
+- **GitHub**: [@Charan7221](https://github.com/Charan7221)
+- **Project Link**: [https://github.com/Charan7221/RAGproject](https://github.com/Charan7221/RAGproject)
+
+## Star History
+
+⭐ **If you find this project helpful, please give it a star!** ⭐
+
+It helps others discover the project and motivates continued development.
+
+---
+
+<div align="center">
+Made with ❤️ using LangChain and FastAPI
+</div>
