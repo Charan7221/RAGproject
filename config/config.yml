@@ -23,12 +23,12 @@ llm:
   # Ollama Configuration
   use_openai: true               
   api_key: ""                    
-  model: "qwen2.5:7b"            # Faster than llama3.2:3b for answer generation
+  model: "qwen2.5:0.5b"          # Ultra-fast 0.5B model - 10x faster than 7B on CPU (was qwen2.5:7b)
   base_url: "http://localhost:11434"  # Ollama API endpoint                 
   
   # Generation Parameters
   params:
-    max_tokens: 1500             # Reduced for faster generation
+    max_tokens: 800              # Further reduced for faster generation on CPU (was 1500)
     temperature: 0.1
 
 # Retrieval Configuration
