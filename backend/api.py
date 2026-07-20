@@ -40,6 +40,7 @@ from src.rag_qa.utils.config_loader import (
     get_conversation_config,
     get_llm_config
 )
+from src.rag_qa.utils.cache import init_cache, get_cache
 # from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # Import logging configuration
@@ -79,7 +80,7 @@ logger.info("=" * 80)
 # Global shared resources
 _embeddings = None
 _rag_instances = {}  # session_id -> RAGWithOpenAI instance
-MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_SIZE_BYTES = 150 * 1024 * 1024  # 150 MB (supports 100MB+ PDFs)
 MAX_RAG_CACHE_SIZE = 50
 
 
@@ -112,7 +113,7 @@ class SessionResponse(BaseModel):
 # Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup."""
+    """Initialize database and cache on startup."""
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.warning(
@@ -127,6 +128,23 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Database initialization failed: {e}", exc_info=True)
         raise
+    
+    # Initialize Redis cache (with graceful degradation)
+    logger.info("Initializing Redis cache...")
+    try:
+        cache = init_cache(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
+            default_ttl=int(os.getenv("CACHE_TTL", 3600)),
+            enabled=os.getenv("CACHE_ENABLED", "true").lower() == "true"
+        )
+        if cache.health_check():
+            logger.info("✅ Redis cache initialized and connected")
+        else:
+            logger.warning("⚠️ Redis cache initialized but not connected (will operate without caching)")
+    except Exception as e:
+        logger.warning(f"Redis cache initialization failed: {e} (continuing without cache)")
+        init_cache(enabled=False)
 
 
 # Helper Functions
@@ -211,13 +229,18 @@ async def get_config():
     llm_config = get_llm_config()
     retrieval_config = get_retrieval_config()
     embeddings_config = get_embeddings_config()
+    cache = get_cache()
+    cache_stats = cache.get_stats() if cache else {"enabled": False}
+    
     return {
         "llm_model": llm_config.get("model", "gemini-2.0-flash"),
         "embedding_model": embeddings_config.get("default_model"),
         "top_k": retrieval_config.get("top_k", 5),
         "hybrid_search_enabled": retrieval_config.get("hybrid_search", {}).get("enabled", True),
         "max_upload_size_mb": MAX_UPLOAD_SIZE_BYTES // (1024 * 1024),
-        "supported_formats": [".pdf", ".txt", ".docx", ".md"]
+        "supported_formats": [".pdf", ".txt", ".docx", ".md"],
+        "cache_enabled": cache_stats.get("enabled", False),
+        "cache_hit_rate": cache_stats.get("hit_rate_percent", 0)
     }
 
 
@@ -233,12 +256,21 @@ async def root():
     finally:
         db_session.close()
     
+    # Cache health check
+    cache = get_cache()
+    cache_stats = cache.get_stats() if cache else {"enabled": False}
+    
     return {
         "status": "online",
         "service": "RAG Document QA API",
         "version": "2.0.0",
         "database": "connected" if db_ok else "disconnected",
-        "active_sessions": session_count
+        "active_sessions": session_count,
+        "cache": {
+            "enabled": cache_stats.get("enabled", False),
+            "connected": cache_stats.get("connected", False),
+            "hit_rate": f"{cache_stats.get('hit_rate_percent', 0)}%" if cache_stats.get("enabled") else "N/A"
+        }
     }
 
 
@@ -354,7 +386,7 @@ async def upload_document(
         chunk_contents = [chunk.page_content for chunk in chunks]
         chunk_metadatas = [chunk.metadata for chunk in chunks]
         
-        BATCH_SIZE = 5  # Smaller batches to avoid rate limits
+        BATCH_SIZE = 20  # Optimized for Ollama - can handle more chunks
         total_chunks = len(chunk_contents)
         total_batches = (total_chunks + BATCH_SIZE - 1) // BATCH_SIZE
         
@@ -368,7 +400,7 @@ async def upload_document(
             batch_metadatas = chunk_metadatas[start:end]
             
             # Generate embeddings for this batch with retry logic
-            MAX_RETRIES = 15
+            MAX_RETRIES = 5  # Reduced from 15 - Ollama rarely needs retries
             batch_embeddings = None
             for attempt in range(MAX_RETRIES):
                 try:
@@ -377,12 +409,8 @@ async def upload_document(
                 except Exception as e:
                     error_msg = str(e)
                     if '429' in error_msg or 'RESOURCE_EXHAUSTED' in error_msg:
-                        # Try to parse the required retry delay
-                        retry_match = re.search(r'Please retry in ([\d\.]+)s', error_msg)
-                        if retry_match:
-                            delay = float(retry_match.group(1)) + 3.0  # Add 3s buffer
-                        else:
-                            delay = (2 ** attempt) * 8  # Exponential backoff: 8, 16, 32, 64...
+                        # For Ollama, short delays are enough
+                        delay = 3.0 + (attempt * 2)  # 3s, 5s, 7s, 9s, 11s
                         
                         logger.warning(f"Rate limit hit on batch {batch_idx+1}/{total_batches}. Retrying in {delay:.1f}s (Attempt {attempt+1}/{MAX_RETRIES}).")
                         await asyncio.sleep(delay)
@@ -403,9 +431,9 @@ async def upload_document(
                 document_id=doc_id
             )
             
-            # Mandatory cooldown between batches to avoid hitting rate limits
+            # Reduced cooldown between batches - Ollama can handle faster requests
             if batch_idx < total_batches - 1:
-                await asyncio.sleep(15)
+                await asyncio.sleep(2)  # Reduced from 15s to 2s
         
         logger.info(f"All {total_chunks} embeddings generated and stored")
         
@@ -425,6 +453,12 @@ async def upload_document(
         # Invalidate cached RAG instance (new docs = new retrieval scope)
         if session_id in _rag_instances:
             del _rag_instances[session_id]
+        
+        # Invalidate cache for this session (document scope changed)
+        cache = get_cache()
+        invalidated = cache.invalidate_session(session_id)
+        if invalidated > 0:
+            logger.info(f"Invalidated {invalidated} cached queries for session {session_id}")
         
         doc_info = {
             "id": doc_id,
@@ -472,6 +506,18 @@ async def query_documents(request: QueryRequest):
     
     logger.info(f"Query received: '{request.question[:100]}...' (session: {request.session_id})")
     
+    # Check cache first
+    cache = get_cache()
+    cached_response = cache.get(request.session_id, request.question)
+    
+    if cached_response:
+        logger.info("✅ Returning cached response")
+        return QueryResponse(
+            answer=cached_response["answer"],
+            sources=cached_response["source_documents"],
+            token_usage=cached_response.get("token_usage")
+        )
+    
     # Verify session exists
     db_session = get_db_session()
     try:
@@ -511,6 +557,9 @@ async def query_documents(request: QueryRequest):
             token_usage=result.get('token_usage')
         )
         
+        # Cache the response
+        cache.set(request.session_id, request.question, result)
+        
         logger.info(
             f"Query processed | Answer: {len(result['answer'])} chars | "
             f"Sources: {len(result['source_documents'])}"
@@ -535,6 +584,10 @@ async def query_documents_stream(request: QueryRequest):
     
     logger.info(f"Stream query received: '{request.question[:100]}...' (session: {request.session_id})")
     
+    # Check cache first
+    cache = get_cache()
+    cached_response = cache.get(request.session_id, request.question)
+    
     # Verify session exists and has documents
     db_session = get_db_session()
     try:
@@ -551,8 +604,33 @@ async def query_documents_stream(request: QueryRequest):
         db_session.close()
     
     async def event_generator():
-        """Generate SSE events from RAG streaming."""
+        """Generate SSE events from RAG streaming (or cached response)."""
         try:
+            # If cached, stream the cached response quickly
+            if cached_response:
+                logger.info("✅ Streaming cached response")
+                
+                # Stream status
+                yield f"data: {json.dumps({'type': 'status', 'content': '⚡ Retrieved from cache'})}\n\n"
+                
+                # Stream sources
+                if cached_response.get('source_documents'):
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': cached_response['source_documents']})}\n\n"
+                
+                # Stream answer token by token (simulate streaming from cache)
+                answer = cached_response['answer']
+                words = answer.split(' ')
+                for i, word in enumerate(words):
+                    token = word if i == len(words) - 1 else word + ' '
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    # Small delay to simulate streaming (optional)
+                    await asyncio.sleep(0.01)
+                
+                # Done
+                yield f"data: {json.dumps({'type': 'done', 'token_usage': cached_response.get('token_usage')})}\n\n"
+                return
+            
+            # Not cached - proceed with normal RAG pipeline
             rag = get_rag_for_session(request.session_id)
             
             # Load chat history
@@ -586,6 +664,15 @@ async def query_documents_stream(request: QueryRequest):
                     request.session_id, 'assistant', full_answer,
                     sources=sources
                 )
+                
+                # Cache the response for future queries
+                cache_data = {
+                    "answer": full_answer,
+                    "source_documents": sources,
+                    "token_usage": None
+                }
+                cache.set(request.session_id, request.question, cache_data)
+                logger.info(f"Cached streaming response for future queries")
             
         except Exception as e:
             logger.error(f"Error in stream: {e}", exc_info=True)
@@ -676,6 +763,10 @@ async def delete_session(session_id: str):
         if session_id in _rag_instances:
             del _rag_instances[session_id]
         
+        # Invalidate cache for this session
+        cache = get_cache()
+        cache.invalidate_session(session_id)
+        
         logger.info(f"Session deleted successfully: {session_id}")
         return {"message": "Session deleted successfully"}
     except HTTPException:
@@ -724,6 +815,10 @@ async def delete_document(session_id: str, document_id: str):
         if session_id in _rag_instances:
             del _rag_instances[session_id]
         
+        # Invalidate cache for this session
+        cache = get_cache()
+        cache.invalidate_session(session_id)
+        
         logger.info(f"Document removed: {filename}")
         return {"message": f"Document {filename} removed"}
     except HTTPException:
@@ -734,6 +829,13 @@ async def delete_document(session_id: str, document_id: str):
         raise HTTPException(status_code=500, detail=f"Error deleting document: {e}")
     finally:
         db_session.close()
+
+
+@app.get("/api/cache/stats")
+async def get_cache_stats():
+    """Get cache statistics."""
+    cache = get_cache()
+    return cache.get_stats()
 
 
 if __name__ == "__main__":

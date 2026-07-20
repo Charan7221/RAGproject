@@ -19,6 +19,7 @@ warnings.filterwarnings("ignore")
 
 # Document processing libraries
 import PyPDF2
+import fitz  # PyMuPDF - better PDF extraction
 from docx import Document as DocxDocument
 import markdown
 from bs4 import BeautifulSoup
@@ -166,7 +167,8 @@ class DocumentProcessor:
     
     def load_pdf(self, file_path: str) -> str:
         """
-        Extract text from PDF files.
+        Extract text from PDF files using PyMuPDF (fitz) for better extraction.
+        Falls back to PyPDF2 if PyMuPDF fails.
         
         Args:
             file_path: Path to the PDF file
@@ -174,17 +176,41 @@ class DocumentProcessor:
         Returns:
             Extracted text content
         """
+        # Try PyMuPDF first (much better extraction)
         try:
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                text = ""
-                for page in pdf_reader.pages:
-                    text += page.extract_text() + "\n"
-                logger.debug(f"Extracted text from PDF: {file_path}")
-                return text
+            doc = fitz.open(file_path)
+            text = ""
+            total_chars = 0
+            
+            for page_num, page in enumerate(doc):
+                page_text = page.get_text()
+                text += page_text + "\n"
+                total_chars += len(page_text)
+            
+            doc.close()
+            
+            logger.info(f"Extracted {total_chars:,} chars from {len(doc)} pages using PyMuPDF: {file_path}")
+            
+            if total_chars < 100 and len(doc) > 0:
+                logger.warning(f"Very low text extraction ({total_chars} chars from {len(doc)} pages) - PDF might be image-based")
+            
+            return text
+            
         except Exception as e:
-            logger.error(f"Error reading PDF {file_path}: {e}")
-            return ""
+            logger.warning(f"PyMuPDF failed for {file_path}: {e}, falling back to PyPDF2")
+            
+            # Fallback to PyPDF2
+            try:
+                with open(file_path, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    text = ""
+                    for page in pdf_reader.pages:
+                        text += page.extract_text() + "\n"
+                    logger.debug(f"Extracted text from PDF using PyPDF2: {file_path}")
+                    return text
+            except Exception as e2:
+                logger.error(f"Error reading PDF {file_path} with both methods: {e2}")
+                return ""
     
     def load_docx(self, file_path: str) -> str:
         """

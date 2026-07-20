@@ -3,8 +3,8 @@
 
 # Text Splitting Configuration
 text_splitter:
-  chunk_size: 512                # Optimized for better context (increased from 128)
-  chunk_overlap: 50              # Better context preservation (increased from 15)
+  chunk_size: 1200               # Optimized for large documents (350+ pages) - faster processing
+  chunk_overlap: 150             # Proportional overlap for better context
   separators:                    # Hierarchical separators for splitting
     - "\n\n"                     # Paragraph breaks (highest priority)
     - "\n"                       # Line breaks
@@ -23,18 +23,18 @@ llm:
   # Ollama Configuration
   use_openai: true               
   api_key: ""                    
-  model: "llama3.2:3b"           # Ollama model - FREE, NO rate limits!
+  model: "qwen2.5:7b"            # Faster than llama3.2:3b for answer generation
   base_url: "http://localhost:11434"  # Ollama API endpoint                 
   
   # Generation Parameters
   params:
-    max_tokens: 2000             
+    max_tokens: 1500             # Reduced for faster generation
     temperature: 0.1
 
 # Retrieval Configuration
 retrieval:
-  top_k: 5                      # Final number of chunks to return
-  top_k_initial: 20             # Initial retrieval count
+  top_k: 3                      # Reduced from 5 for faster retrieval
+  top_k_initial: 15             # Reduced from 20 for faster initial search
   search_type: "similarity"     # similarity, mmr
   
   # Hybrid Search Configuration (Full-text + Semantic)

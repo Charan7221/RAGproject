@@ -373,6 +373,7 @@ Answer:"""
         Stream answer tokens using RAG with OpenAI.
         
         Yields dictionaries with either:
+        - {"type": "status", "content": "..."} for progress updates
         - {"type": "token", "content": "..."} for each token
         - {"type": "sources", "sources": [...]} for source documents
         - {"type": "done", "token_usage": {...}} when complete
@@ -391,15 +392,22 @@ Answer:"""
             return
         
         try:
-            # Step 1: Retrieve documents
+            # Step 1: Indicate retrieval started
+            yield {"type": "status", "content": "🔍 Searching documents..."}
+            
+            # Retrieve documents
             docs, initial_count = self._retrieve_documents(question)
             
             if not docs:
+                yield {"type": "status", "content": "⚠️ No relevant documents found"}
                 yield {"type": "token", "content": "No relevant documents found."}
                 yield {"type": "done", "token_usage": None}
                 return
             
-            # Yield sources first so UI can display them
+            # Step 2: Show retrieval results
+            yield {"type": "status", "content": f"✅ Found {len(docs)} relevant sources"}
+            
+            # Yield sources so UI can display them
             yield {
                 "type": "sources",
                 "sources": [
@@ -412,11 +420,13 @@ Answer:"""
                 ]
             }
             
-            # Step 2: Build context and prompt
+            # Step 3: Build context and prompt
+            yield {"type": "status", "content": "✍️ Generating answer..."}
+            
             context = self._build_context(docs)
             prompt = self._build_prompt(question, context, chat_history)
             
-            # Step 3: Stream response
+            # Step 4: Stream response
             logger.debug("Streaming Google Gemini API response")
             message = HumanMessage(content=prompt)
             
@@ -426,7 +436,7 @@ Answer:"""
                     full_response += chunk.content
                     yield {"type": "token", "content": chunk.content}
             
-            # Step 4: Done
+            # Step 5: Done
             yield {"type": "done", "token_usage": None}
             
             logger.debug(f"Streamed answer ({len(full_response)} chars)")
